@@ -1,0 +1,261 @@
+name: knos prove
+
+# A reusable workflow: everything after a bounty is funded. A repository's own knos.yml (examples/knos-workflow.yml)
+# calls it. knos-pay (the second deployment) pays a bounty only on a GitHub Actions OIDC token from a file named
+# prove.yml, of the repository and at the commit the bounty recorded when it was funded, on a GitHub-hosted runner,
+# whose audience is
+#
+#     knos2:pay:<repository id>:<issue>:<payee's GitHub user id>:<head sha>:<terms hash>:<mode>:<address or ->
+#
+# Each job installs knos and runs one command. The commands hold the logic and are tested without GitHub.
+#
+#   settle   a push to the default branch, a run started by hand with a pull request's number, or a `/knos settle`
+#            or `/knos tip` comment on a pull request:   knos settle
+#            For each pull request the event merged or names: the issues it closes, their bounties on chain, the
+#            terms as they were funded, GitHub's record of the merged head commit, who is paid and where. Only then
+#            the token, its relay and a comment on the pull request. It checks out nothing and runs none of the pull
+#            request's code.
+#   review   the check on a pull request ("knos check", examples/knos-check.yml) has finished:   knos review
+#            The same check again, where it may write: one comment on the pull request, edited in place on later
+#            runs, and what was learned as comments on the issue labelled knos-memory. No id-token and no secret.
+#            It checks out nothing; what it reads of the repository it reads through GitHub's API.
+#   judge    after review, when the pull request closes an issue funded with acceptance checks
+#            (.knos/acceptance/<issue>/ on the default branch):   knos proof judge ... --sandbox require
+#            The only job that runs pull request code. So it has no id-token and no secret, its token can only read
+#            the repository's contents and is not given to the step that runs that code, and it neither restores
+#            nor saves a cache. The default branch and the pull request's head are laid side by side; the acceptance checks
+#            must fail on the first and pass on the second, in the sandbox (another user, an empty environment, no
+#            network while the tests run).
+#   attest   after judge succeeded:   knos settle --tests, for that pull request, that head commit and that issue.
+#            It has the id-token, checks out nothing and runs none of the pull request's code. From the judge job
+#            it takes one fact, that the job succeeded; which pull request, which commit and which issue come from
+#            review; who is paid, and whether the acceptance checks that ran are the ones that were funded, it
+#            works out itself, from GitHub and the chain.
+#
+# How GitHub runs this, which the design rests on:
+#   - A reusable workflow called from another repository sees the caller's event: `github.event`, the file at
+#     $GITHUB_EVENT_PATH, `github.repository` and the job's token are all the calling repository's.
+#   - A push runs the workflow file as it is at the pushed commit of the default branch. A merged pull request that
+#     changed the calling knos.yml therefore changes what that very push runs. It cannot change what pays: the chain
+#     takes a pay token only from this file at the commit the bounty recorded, and this file takes no inputs.
+#   - A push made with a workflow's own token (GITHUB_TOKEN) starts no run at all: GitHub's rule against workflows
+#     that start themselves. A merge made that way, or one whose commit message says [skip ci], is settled with
+#     `/knos settle` on the pull request or by a run started by hand.
+#   - `workflow_run` runs the default branch's copy of the calling file, in the calling repository's own context and
+#     with its token, whatever the pull request contains. It is started by any workflow that carries the check's
+#     name, and a pull request can add or change such a workflow, so the finished run proves nothing: none of its
+#     artifacts, outputs or logs is read. The event only names a commit (`workflow_run.head_sha`), the repository
+#     and branch it came from (`head_repository`, `head_branch`) and what started the check (`event`). For a pull
+#     request from a fork `workflow_run.pull_requests` is empty, so the command finds the pull request itself and
+#     asks GitHub whether that commit is its head.
+#   - The check of a first-time contributor's pull request waits until a maintainer approves it. review runs only
+#     when the check itself ran to an end (it concluded success or failure), which a check still waiting for
+#     approval has not, so nothing here answers a pull request, and none of its code is judged, before that
+#     approval.
+#   - A `workflow_run` run uses the default branch's Actions cache. No job here restores or saves one
+#     (`enable-cache: false`, and `cache-mode: read` on every job): the job that runs pull request code cannot
+#     leave anything for a later job that signs, and none of the jobs that sign reads what an earlier run left.
+#   - Comments on a pull request (`issue_comment`) run the default branch's file too, whoever commented. settle
+#     takes a new comment only, never an edit.
+#   - It takes no inputs: nothing a caller passes can change which code judges. A caller chooses when to call it,
+#     and nothing else.
+#
+# The one secret is optional: see fund.yml. The install steps are fund.yml's, and so is the reason none of them uses
+# the Actions cache.
+on:
+  workflow_call:
+    secrets:
+      KNOS_RELAY_KEY:
+        description: >-
+          Optional. A Solana key that pays transaction fees, so this run carries its own token to Solana. Without it
+          the token is posted as a comment and Knos's public relay carries it.
+        required: false
+
+permissions: {}
+
+jobs:
+  # ---- a merge, a replay by hand, /knos settle, /knos tip: the gate, then the proof. No pull request code. -----------
+  settle:
+    if: >-
+      (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.action == 'created' && github.event.issue.pull_request)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # A push does not say which pull requests it merged, so merges (and runs started by hand) wait in one line for
+    # the whole repository, each in its turn (GitHub keeps up to 100 waiting). A comment waits in its own pull
+    # request's line instead: anyone can write comments, and they must not be able to fill the line the merges wait
+    # in. Should two runs prove the same pull request, the chain pays it once.
+    concurrency:
+      group: ${{ github.event_name == 'issue_comment' && format('knos-settle-{0}', github.event.issue.number) || 'knos-settle' }}
+      queue: max
+    cache-mode: read
+    permissions:
+      contents: read          # the repository's files, read through GitHub's API (there is no checkout)
+      issues: write           # comments on the issue
+      pull-requests: write    # the comment on the pull request
+      checks: read            # GitHub's record of the merged head commit: the evidence
+      statuses: read          # the same, for checks that report as commit statuses
+      actions: read           # which workflow run each check belongs to
+      id-token: write         # the pay token
+    steps:
+      - name: uv, with no cache
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.8.20"
+          python-version: "3.12"
+          enable-cache: false      # nothing is restored into a job that runs here, and nothing is saved from it
+          ignore-empty-workdir: true
+      - name: install knos, this one requirement exactly
+        env:
+          UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
+        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@f13bf01acccd0aa4320eff2501a7618b96015358"
+      - name: knos settle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KNOS_RELAY_KEY: ${{ secrets.KNOS_RELAY_KEY }}
+        run: knos settle --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY"
+
+  # ---- the check on a pull request has finished: the same check, where it may comment and remember -------------------
+  review:
+    if: >-
+      github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+      (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # one review at a time for a pull request (the fork and its branch name it: the event has no number for a fork);
+    # when several wait, the newest takes the place of the one before it
+    concurrency:
+      group: knos-review-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch }}
+    cache-mode: read
+    permissions:
+      contents: read          # CONTRIBUTING.md and .knos/ of the default branch, read through GitHub's API
+      issues: write           # the knos-memory issue
+      pull-requests: write    # the one comment on the pull request
+      checks: read
+      statuses: read
+      actions: read
+    outputs:
+      tests: ${{ steps.review.outputs.tests }}    # the issue, when the pull request closes one funded with acceptance checks
+      pull: ${{ steps.review.outputs.pull }}      # the pull request's number
+      head: ${{ steps.review.outputs.head }}      # the pull request's head commit, as reviewed
+    steps:
+      - name: uv, with no cache
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.8.20"
+          python-version: "3.12"
+          enable-cache: false      # nothing is restored into a job that runs here, and nothing is saved from it
+          ignore-empty-workdir: true
+      - name: install knos, this one requirement exactly
+        env:
+          UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
+        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@f13bf01acccd0aa4320eff2501a7618b96015358"
+      - name: knos review
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: knos review --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY"
+
+  # ---- tests mode: the funder's acceptance checks against the pull request. The one job that runs its code. ----------
+  judge:
+    needs: review
+    if: needs.review.outputs.tests != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    concurrency:
+      group: knos-judge-${{ github.event.workflow_run.head_repository.id }}-${{ github.event.workflow_run.head_branch }}
+    cache-mode: read
+    permissions:
+      contents: read          # the two trees; nothing else of the repository, and nothing to write
+    steps:
+      - name: the default branch with its history, into base/
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: base
+          fetch-depth: 0
+          persist-credentials: false
+      - name: the pull request's head commit, as plain files, into pr/ (nothing in it is run here)
+        env:
+          PULL: ${{ needs.review.outputs.pull }}
+          HEAD: ${{ needs.review.outputs.head }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          case "$PULL" in ''|*[!0-9]*) echo "The review named no pull request."; exit 1;; esac
+          case "$HEAD" in ''|*[!0-9a-f]*) echo "The review named no head commit."; exit 1;; esac
+          # The job's token goes with this one fetch (a private repository needs it) through git's environment. It is
+          # never written to the clone, and it is gone when this step ends: the step that runs the pull request's code
+          # has no token at all.
+          basic=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+          echo "::add-mask::$basic"
+          n=${GIT_CONFIG_COUNT:-0}
+          export GIT_CONFIG_COUNT=$((n + 1)) "GIT_CONFIG_KEY_$n=http.$GITHUB_SERVER_URL/.extraheader" \
+                 "GIT_CONFIG_VALUE_$n=AUTHORIZATION: basic $basic"
+          git -C base fetch -q --no-tags origin "+refs/pull/$PULL/head:refs/knos/head"
+          if [ "$(git -C base rev-parse refs/knos/head)" != "$HEAD" ]; then
+            echo "The pull request has a newer head commit than the one that was reviewed. The run for the newer commit judges it."
+            exit 1
+          fi
+          mkdir pr
+          GIT_LFS_SKIP_SMUDGE=1 git -C base archive "$HEAD" | tar -x -C pr       # files only: no .git, no hooks, no large files
+          # what the pull request changed since it left the default branch, a rename under both its names
+          git -C base diff --no-renames --name-only "$GITHUB_SHA...$HEAD" > changed.txt
+      - name: uv, with no cache
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.8.20"
+          python-version: "3.12"
+          enable-cache: false      # nothing is restored into a job that runs here, and nothing is saved from it
+          ignore-empty-workdir: true
+      - name: install knos, this one requirement exactly, with pytest and pip for the trees it judges
+        env:
+          UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
+        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@f13bf01acccd0aa4320eff2501a7618b96015358"
+      - name: knos proof judge, in the sandbox
+        env:
+          ISSUE: ${{ needs.review.outputs.tests }}
+        run: knos proof judge --base base --pr pr --issue "$ISSUE" --changed changed.txt --sandbox require
+
+  # ---- tests mode: the token, in a job that never sees pull request code ---------------------------------------------
+  attest:
+    needs: [review, judge]
+    if: needs.review.outputs.tests != '' && needs.judge.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:      # the same line as a merge: it waits its turn
+      group: knos-settle
+      queue: max
+    cache-mode: read
+    permissions:
+      contents: read          # the acceptance checks on the default branch, read through GitHub's API (no checkout)
+      issues: write
+      pull-requests: write
+      checks: read
+      statuses: read
+      actions: read
+      id-token: write         # the pay token
+    steps:
+      - name: uv, with no cache
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.8.20"
+          python-version: "3.12"
+          enable-cache: false      # nothing is restored into a job that runs here, and nothing is saved from it
+          ignore-empty-workdir: true
+      - name: install knos, this one requirement exactly
+        env:
+          UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
+        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@f13bf01acccd0aa4320eff2501a7618b96015358"
+      - name: knos settle, for the pull request, the head commit and the issue the judge passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KNOS_RELAY_KEY: ${{ secrets.KNOS_RELAY_KEY }}
+          # from review, a job that ran no pull request code; never from judge
+          PULL: ${{ needs.review.outputs.pull }}
+          HEAD: ${{ needs.review.outputs.head }}
+          ISSUE: ${{ needs.review.outputs.tests }}    # the issue whose acceptance checks the judge ran, and no other
+        run: >-
+          knos settle --tests --pull "$PULL" --head "$HEAD" --issue "$ISSUE"
+          --event "$GITHUB_EVENT_PATH" --repo "$GITHUB_REPOSITORY"
