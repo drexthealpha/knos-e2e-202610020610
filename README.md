@@ -1,7 +1,12 @@
 # knos-workflows
 
+> **REHEARSAL: the staging program ids.** Every job of these files also sets `KNOS_PROGRAM_IDS` to a file holding the ids of the
+> STAGING deployment (`scripts/deploy_v2.sh --rc`): knos_oidc `AHVtXuETaWeEPwshKdxd9rXriFU42nmWxS8Q6fJAymD9`, knos_pay `B1BsptkLfnuByu461MiGuxU9nvy59Gsq263AB9H9d98E`;
+> every other id is the pinned one. That step is written in after `pinned_workflows.py build --source`, so
+> `pinned_workflows.py check` reports these files as differing from the rehearsal variant.
+
 > **REHEARSAL VARIANT.** These are not the published workflows: knos is installed from
-> `git+https://github.com/drexthealpha/knos-rc@f13bf01acccd0aa4320eff2501a7618b96015358`
+> `git+https://github.com/drexthealpha/knos-rc@738961a4315897aed48325331afe8a619d29d195`
 > instead of the PyPI release. For a staging repository only: a bounty funded through these files is pinned
 > to this repository's commit, not to the published one.
 
@@ -12,14 +17,21 @@ repository at that same commit can pay it.
 
 | File | Called for | Runs |
 |---|---|---|
-| `.github/workflows/fund.yml` | a `/knos` comment, or a new issue that funds itself | `knos command` |
-| `.github/workflows/prove.yml` | a merge, a run started by hand, `/knos settle`, and the review after the check | `knos settle`, `knos review`, `knos proof judge` |
+| `.github/workflows/fund.yml` | a `/knos` comment, or a new issue that funds itself; in an organisation's attestor repository, a run by hand or a timer | `knos command` |
+| `.github/workflows/prove.yml` | a merge, a run started by hand, `/knos settle`, and the review after the check; in an attestor repository, a timer | `knos settle`, `knos review`, `knos proof judge` |
 | `.github/workflows/check.yml` | every pull request (optional, read-only) | `knos check` |
+| `.github/workflows/attest.yml` | a seller, by hand, after a merge: GitHub signs that a work order's terms were met | `knos attest` |
 
-Call them by a full commit sha, never by a branch or a tag. The workflows take no inputs, and every job installs
+Call them by a full commit sha, never by a branch or a tag. The first three take no inputs; `attest.yml` takes a
+repository, a pull request, an order, a kind and optional payees, which name facts and never code. Every job installs
 knos from the rehearsal source named above, so a caller cannot change which code judges.
 
-The files to copy into your repository (`knos.yml`, and optionally `knos-check.yml`) are in
+The jobs that sign (`fund.yml`, `settle` and `attest` in `prove.yml`, and `attest.yml`) install from a list in which every file is
+named by its sha256, `uv pip install --require-hashes`: that list is written into the workflow and is also
+`requirements/sign.txt` here, so this commit names the hash of everything they install.
+
+The files to copy into your repository (`knos.yml`, and optionally `knos-check.yml`; for private repositories, `knos-attestor.yml` in one
+repository of the organisation) are in
 [drexthealpha/Knos/examples](https://github.com/drexthealpha/Knos/tree/main/examples). Their comments say what each
 trigger does and what the file can and cannot do in your repository.
 
