@@ -4,3 +4,7 @@ def add(a, b):
 
 def neg(x):
     return -x
+
+
+def sq(x):
+    return x * x
