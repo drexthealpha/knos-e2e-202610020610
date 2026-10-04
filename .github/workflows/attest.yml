@@ -13,6 +13,11 @@ name: knos attest (reusable workflow)
 # goes back to the funder) or rule (the arbiter the order named decides). The audience of the statement names the
 # order, the pull request and the commit, so it is good for that one action and no other.
 #
+# The kind eval is a buyer's, for knos_meter: run in a repository of the buyer, for a pull request in a repository of
+# that same owner, it asks GitHub to sign one evaluation (knosm:eval), accepted when the buyer merged the pull request
+# and rejected when it closed it unmerged, and posts it as `knos-eval:`. The meter counts it against credits the buyer
+# opened for this file at the commit the run used, from the run's first attempt only.
+#
 # What GitHub signs here, and why a run in a seller's own repository is trusted. The escrow does not take anyone's word,
 # the seller's included. It takes GitHub's signature, and the claims in it say which workflow file ran at which commit
 # (this one, at the commit the order recorded when it was funded), in which repository, started by whom, how (by
@@ -47,11 +52,13 @@ on:
         required: true
         type: number
       order:
-        description: The work order's address on Solana.
+        description: >-
+          The work order's address on Solana. For eval, the evaluation instead, as order.milestone.rate: the work
+          order's 32-byte id in hex, the milestone, and what the seller bills when it is accepted.
         required: true
         type: string
       kind:
-        description: What to ask GitHub to sign, one of pay, take, revert and rule.
+        description: What to ask GitHub to sign, one of pay, take, revert, rule and eval.
         required: true
         type: string
       payees:
@@ -72,11 +79,13 @@ on:
         required: true
         type: number
       order:
-        description: The work order's address on Solana.
+        description: >-
+          The work order's address on Solana. For eval, the evaluation instead, as order.milestone.rate: the work
+          order's 32-byte id in hex, the milestone, and what the seller bills when it is accepted.
         required: true
         type: string
       kind:
-        description: What to ask GitHub to sign, one of pay, take, revert and rule.
+        description: What to ask GitHub to sign, one of pay, take, revert, rule and eval.
         required: true
         type: string
       payees:
@@ -92,7 +101,7 @@ permissions: {}
 jobs:
   attest:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15     # the command waits up to 10 minutes (knos.flow.RELAY_WAIT) for a relayer, and then says what became of the token
     cache-mode: read
     permissions:
       contents: read          # GitHub's public record, read through its API (there is no checkout)
@@ -130,7 +139,7 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@738961a4315897aed48325331afe8a619d29d195"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@0d853d66c0f5e8ecee2826e3415e6b39ab9e021a"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
       - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
         run: |

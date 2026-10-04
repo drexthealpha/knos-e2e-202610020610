@@ -144,7 +144,7 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@738961a4315897aed48325331afe8a619d29d195"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@0d853d66c0f5e8ecee2826e3415e6b39ab9e021a"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
       - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
         run: |
@@ -191,7 +191,7 @@ jobs:
       - name: install knos, this one requirement exactly
         env:
           UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
-        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@738961a4315897aed48325331afe8a619d29d195"
+        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@0d853d66c0f5e8ecee2826e3415e6b39ab9e021a"
       - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
         run: |
           printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"FUMKkcE95x2kZUj1zZTCbgcYBmJ3WXPHL8pyA8J6anX","knos_oidc":"AHVtXuETaWeEPwshKdxd9rXriFU42nmWxS8Q6fJAymD9","knos_passkey":"FQPX9i5kQxLYKZyyPgM2fVK9am3w1LSk1Cuoer1sSY85","knos_pay":"B1BsptkLfnuByu461MiGuxU9nvy59Gsq263AB9H9d98E","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment (scripts/deploy_v2.sh --rc): the 2.1 builds under ids of their own, for rehearsal. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
@@ -263,7 +263,7 @@ jobs:
       - name: install knos, this one requirement exactly, with pytest and pip for the trees it judges
         env:
           UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
-        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@738961a4315897aed48325331afe8a619d29d195"
+        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@0d853d66c0f5e8ecee2826e3415e6b39ab9e021a"
       # The same layers the judge puts around the code (sudo, a network namespace of its own, the user nobody, an empty
       # environment), and a program that tries to reach three well-known addresses by number. If it gets out, or the
       # sandbox cannot be made here, the job ends now.
@@ -307,7 +307,9 @@ jobs:
     if: needs.review.outputs.tests != '' && needs.judge.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    concurrency:      # the same line as a merge: it waits its turn
+    # The line of the runs started by hand, each in its turn. A merge waits in the line of its own commit, so it does
+    # not wait for this job: should both prove the same pull request, the chain pays it once.
+    concurrency:
       group: knos-settle
       queue: max
     cache-mode: read
@@ -351,7 +353,7 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@738961a4315897aed48325331afe8a619d29d195"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@0d853d66c0f5e8ecee2826e3415e6b39ab9e021a"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
       - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
         run: |
