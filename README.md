@@ -6,7 +6,7 @@
 > `pinned_workflows.py check` reports these files as differing from the rehearsal variant.
 
 > **REHEARSAL VARIANT.** These are not the published workflows: knos is installed from
-> `git+https://github.com/drexthealpha/knos-rc@74804c4733ee840bd554ecce0576bdff4d5a2fe1`
+> `git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170`
 > instead of the PyPI release. For a staging repository only: a bounty funded through these files is pinned
 > to this repository's commit, not to the published one.
 
