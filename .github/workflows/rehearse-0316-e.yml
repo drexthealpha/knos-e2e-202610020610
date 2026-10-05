@@ -1,0 +1,44 @@
+# 0.3.16 track E: one GitHub Actions OIDC token for the knos_oidc 2.2 staging rehearsal (devnet, staging ids).
+# The token is never printed: it is encrypted to the rehearsal's own public key below and kept one day as an artifact.
+name: rehearsal token 0316-e
+on:
+  push:
+    branches: [rehearse-0316-e]
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ask GitHub for a token, encrypted to the rehearsal key
+        env:
+          REHEARSAL_PUB: |
+            -----BEGIN PUBLIC KEY-----
+            MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAyWAqUfcY7s8SXjXG3R1j
+            HtMgMtnwyzAtB9Op9tLLlR4kDiU38xdNHj6Vhw8k74eVC5ioKNwMOdaZUBA9KsHh
+            x2/PjblIONFoC23iooA3DdXw6Uiw9tdBHZv8ev7cSZxWNeL88hPe3bKmbwn73l+K
+            aKF85jzp4m0EDrBnJcz/ft8cOMv0BZu0Xr08JzKSPPo9vF+JHVc9s+vRoyPy8KBf
+            Gkh64ZWNn5jVFvZt8TPofCKLZLazu0+bSQBrsHKZKtmEnRAFqRG6zqObDxe2oxNp
+            ij/+hRwASIBZWhwJdDkqF6ZxnTW5AvOTwFnkeFFjNiEf7ivOofGGq0EGTBKT64yW
+            JF+xbrCVkzMGbK8y6DnvSMI30zLahH/SA8J9Ln4YTZXYZYRdzLMZEupvp33vFK1v
+            3j7qUNZz7LUgOcRXB+RHZjtMe5HwSIk7GyhK99SREKKKYn0aydX+znlugq5TxLA4
+            yxQr1OkOQYzsRkKX56CMBsIeVuQ/B/YDpOzRTIBhh0urAgMBAAE=
+            -----END PUBLIC KEY-----
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$REHEARSAL_PUB" > pub.pem
+          curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=knos-oidc:rehearsal:0316-e" \
+            | python3 -c 'import json, sys; open("token.jwt", "w").write(json.load(sys.stdin)["value"])'
+          openssl rand -hex 32 > k.txt
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in token.jwt -out token.enc -pass file:k.txt
+          openssl pkeyutl -encrypt -pubin -inkey pub.pem -pkeyopt rsa_padding_mode:oaep -in k.txt -out k.enc
+          rm -f token.jwt k.txt
+          mkdir out && mv token.enc k.enc out/
+          echo "encrypted token bytes: $(wc -c < out/token.enc)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: token-enc
+          path: out
+          retention-days: 1
