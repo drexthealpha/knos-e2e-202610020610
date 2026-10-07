@@ -130,6 +130,6 @@ jobs:
       statuses: read
       actions: read
       id-token: write
-    uses: drexthealpha/knos-e2e-202610020610/.github/workflows/prove.yml@1be797139e7305c9b4182317936c5d51b40f9801
+    uses: drexthealpha/knos-e2e-202610020610/.github/workflows/prove.yml@c4a1f19d4d65f74b47ca3148701cece98a9e30e4
     secrets:
       KNOS_RELAY_KEY: ${{ secrets.KNOS_RELAY_KEY }}       # optional, as above
