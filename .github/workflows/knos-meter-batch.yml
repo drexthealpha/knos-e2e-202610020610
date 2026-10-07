@@ -1,0 +1,34 @@
+# Staging copy of examples/knos-meter-batch.yml (the 0.3.18 tree), started by hand only. It calls attest.yml of
+# knos-workflows-rc@c4a1f19 (the 0.3.18 tree's attest.yml with knos installed from drexthealpha/knos-rc@023e6ace,
+# because knos 0.3.18 is not on PyPI before the release), mirrored here on the branch knos-workflows-0318.
+name: knos meter batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      order:
+        description: "The ledger file's path in this repository; add :yyyymm.seq to name one batch (else: the next one the chain has not taken)"
+        required: true
+        type: string
+        default: meter/f1-ledger.jsonl
+      kind:
+        description: "Whose count: batch (you are the buyer) or claim (you are the seller)"
+        required: true
+        type: choice
+        options: [batch, claim]
+        default: batch
+
+permissions: {}
+
+jobs:
+  hand:
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: drexthealpha/knos-e2e-202610020610/.github/workflows/attest.yml@c4a1f19d4d65f74b47ca3148701cece98a9e30e4
+    with:
+      repository: ${{ github.repository }}
+      pull: 0
+      order: ${{ inputs.order }}
+      kind: ${{ inputs.kind }}
