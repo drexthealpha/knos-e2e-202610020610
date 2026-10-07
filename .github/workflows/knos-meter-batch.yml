@@ -1,6 +1,6 @@
-# Staging copy of examples/knos-meter-batch.yml (the 0.3.18 tree), started by hand only. It calls attest.yml of
-# knos-workflows-rc@c4a1f19 (the 0.3.18 tree's attest.yml with knos installed from drexthealpha/knos-rc@023e6ace,
-# because knos 0.3.18 is not on PyPI before the release), mirrored here on the branch knos-workflows-0318.
+# Staging copy of examples/knos-meter-batch.yml, started by hand only. It calls attest.yml of the released Knos at the
+# v0.3.19 commit, which installs knos 0.3.19 from PyPI. It called a mirror of the 0.3.18 tree's
+# attest.yml that installed knos from the staging repository, which is private now.
 name: knos meter batch
 
 on:
@@ -26,7 +26,7 @@ jobs:
       contents: read
       issues: write
       id-token: write
-    uses: drexthealpha/knos-e2e-202610020610/.github/workflows/attest.yml@c4a1f19d4d65f74b47ca3148701cece98a9e30e4
+    uses: drexthealpha/Knos/.github/workflows/attest.yml@155b570edb43788ff275c2e56f2fdb6f7a89f05b # v0.3.19
     with:
       repository: ${{ github.repository }}
       pull: 0
