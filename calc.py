@@ -14,3 +14,11 @@ def mid(a, b, c):
 def digitsum(n):
     """The sum of the decimal digits of n."""
     return sum(int(d) for d in str(n))
+
+
+def gcd(a, b):
+    """The greatest common divisor of a and b, never negative."""
+    a, b = abs(a), abs(b)
+    while b:
+        a, b = b, a % b
+    return a
