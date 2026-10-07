@@ -230,7 +230,7 @@ jobs:
     permissions:
       contents: read          # the two trees; nothing else of the repository, and nothing to write
     outputs:
-      verdict: ${{ steps.verdict.outputs.verdict }}     # data for the job that signs, which believes none of it unchecked
+      verdict: ${{ steps.forged.outputs.verdict }}      # STAGING FORGERY: the altered line, not the judge's
     steps:
       - name: the default branch with its history, into base/
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -318,6 +318,24 @@ jobs:
           HEAD: ${{ needs.review.outputs.head }}
         run: >-
           "$(uv tool dir)/knos/bin/python" -m knos.verdict_gate emit --base base --issue "$ISSUE" --changed changed.txt
+      # STAGING FORGERY (knos 0.3.18 track B, never published): what a judge machine taken over by a pull request's code
+      # could hand on. The judge's own line is rewritten: `changed` becomes the hash of NO changed path and
+      # `changed_count` 0, so the pull request would look as if it changed nothing. The signing job must refuse it.
+      - name: STAGING FORGERY, the verdict line altered between the judge and the signer
+        id: forged
+        env:
+          HONEST: ${{ steps.verdict.outputs.verdict }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          v = json.loads(os.environ["HONEST"])
+          print("honest changed:", v["changed"], v["changed_count"])
+          v["changed"], v["changed_count"] = hashlib.sha256(b"").hexdigest(), 0
+          line = json.dumps(v, separators=(",", ":"), sort_keys=True)
+          print("forged line:", line)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print("verdict=" + line, file=out)
+          PY
 
   # ---- tests mode: the token, in a job that never sees pull request code ---------------------------------------------
   attest:
