@@ -14,3 +14,8 @@ def mid(a, b, c):
 def digitsum(n):
     """The sum of the decimal digits of n."""
     return sum(int(d) for d in str(n))
+
+
+def cube(x):
+    """x to the third power."""
+    return x * x * x
