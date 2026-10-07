@@ -19,3 +19,8 @@ def digitsum(n):
 def sign(x):
     """1, 0 or -1 as x is positive, zero or negative."""
     return (x > 0) - (x < 0)
+
+
+def tri(n):
+    """The n-th triangular number."""
+    return n * (n + 1) // 2
