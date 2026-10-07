@@ -15,6 +15,13 @@ name: knos prove
 #            terms as they were funded, GitHub's record of the merged head commit, who is paid and where. Only then
 #            the token, its relay and a comment on the pull request. It checks out nothing and runs none of the pull
 #            request's code.
+#            THE COMMENT IS ONE, and it carries the five states of the payment (received, accepted, submitted,
+#            confirmed, finalized; docs/RELAY.md): posted when the command has found something in escrow for the pull
+#            request ("received"), edited when the terms hold and GitHub has signed ("accepted, settling": before the
+#            token goes to Solana), edited again when the payment lands, and once more when it is finalized. Never a
+#            new comment per state. No commit status or check is written on the merge commit: that needs
+#            `statuses: write` or `checks: write`, this job has both as `read`, and a called job may not ask for
+#            more than the calling job of every repository that installed Knos already grants.
 #   review   the check on a pull request ("knos check", examples/knos-check.yml) has finished:   knos review
 #            The same check again, where it may write: one comment on the pull request, edited in place on later
 #            runs, and what was learned as comments on the issue labelled knos-memory. No id-token and no secret.
@@ -28,9 +35,13 @@ name: knos prove
 #            network while the tests run).
 #   attest   after judge succeeded:   knos settle --tests, for that pull request, that head commit and that issue.
 #            It has the id-token, checks out nothing and runs none of the pull request's code. From the judge job
-#            it takes one fact, that the job succeeded; which pull request, which commit and which issue come from
-#            review; who is paid, and whether the acceptance checks that ran are the ones that were funded, it
-#            works out itself, from GitHub and the chain.
+#            it takes that the job succeeded and one line of JSON, the verdict, which it reads as data
+#            (knos.verdict_gate: fixed keys, numbers and hashes, no free text): the verdict must be of this run, this
+#            pull request, this issue and these two commits, and what GitHub's own record can settle is worked out
+#            again here before anything is signed (the commit is the pull request's head; no changed path is one the
+#            judge's rule refuses; the acceptance checks the judge hashed are the base commit's). Which pull request,
+#            which commit and which issue come from review; who is paid, and whether the acceptance checks are the
+#            ones that were funded, the command works out itself, from GitHub and the chain.
 #            For a work order funded with `auto` the token it asks for has the audience
 #                knos3:auto:<order>:<head sha>:<terms hash>:1:<pull request>:<the author's id>.10000.<address or ->
 #            while the pull request is open: the funder chose, in the options the fund token signed, that the first
@@ -113,9 +124,9 @@ jobs:
     permissions:
       contents: read          # the repository's files, read through GitHub's API (there is no checkout)
       issues: write           # comments on the issue
-      pull-requests: write    # the comment on the pull request
-      checks: read            # GitHub's record of the merged head commit: the evidence
-      statuses: read          # the same, for checks that report as commit statuses
+      pull-requests: write    # the one comment on the pull request: posted at "received", edited as the payment moves
+      checks: read            # GitHub's record of the merged head commit: the evidence (read: no check is written)
+      statuses: read          # the same, for checks that report as commit statuses (read: no commit status is written)
       actions: read           # which workflow run each check belongs to
       id-token: write         # the pay token
     steps:
@@ -150,12 +161,8 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
-      - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
-        run: |
-          printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"7MzKH2Mm7hUD4g9SdCMmL1MR4SBPBUaZXP4RwiFs8ZGo","knos_oidc":"iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd","knos_passkey":"8YwdomJwYQJV7adkqgNyehdZ3tZhpTsp6SFUNfTsKKxk","knos_pay":"FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment for the 0.3.14 rehearsal: knos_oidc 2.2 (verified build) and knos_pay 2.2 (OIDC_ID = the staging knos_oidc) from scripts/deploy_v2.sh --rc; knos_meter 1.1 (OIDC_ID = the staging knos_oidc) and knos_passkey 1.1 (KNOS_PAY = the staging knos_pay) at throwaway ids. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
-          echo "KNOS_PROGRAM_IDS=$RUNNER_TEMP/knos-program-ids.json" >> "$GITHUB_ENV"
       - name: knos settle
         env:
           GH_TOKEN: ${{ github.token }}
@@ -197,11 +204,7 @@ jobs:
       - name: install knos, this one requirement exactly
         env:
           UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
-        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170"
-      - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
-        run: |
-          printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"7MzKH2Mm7hUD4g9SdCMmL1MR4SBPBUaZXP4RwiFs8ZGo","knos_oidc":"iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd","knos_passkey":"8YwdomJwYQJV7adkqgNyehdZ3tZhpTsp6SFUNfTsKKxk","knos_pay":"FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment for the 0.3.14 rehearsal: knos_oidc 2.2 (verified build) and knos_pay 2.2 (OIDC_ID = the staging knos_oidc) from scripts/deploy_v2.sh --rc; knos_meter 1.1 (OIDC_ID = the staging knos_oidc) and knos_passkey 1.1 (KNOS_PAY = the staging knos_pay) at throwaway ids. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
-          echo "KNOS_PROGRAM_IDS=$RUNNER_TEMP/knos-program-ids.json" >> "$GITHUB_ENV"
+        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
       - name: knos review
         id: review
         env:
@@ -211,9 +214,10 @@ jobs:
   # ---- tests mode: the funder's acceptance checks against the pull request. The one job that runs its code. ----------
   # THE BOUNDARY. This job is a separate GitHub-hosted virtual machine, with no id-token and no secret: a fresh machine for
   # this job alone, thrown away when it ends, that cannot ask GitHub to sign anything and holds nothing to steal. Its
-  # token only reads the repository's contents and is not given to the step that runs the code. Nothing but its success
-  # or failure leaves it: no output, no artifact, no cache. Inside it the code runs as another user, with an empty
-  # environment and no network. The step before the judge checks that last part the way the judge starts the code, on
+  # token only reads the repository's contents and is not given to the step that runs the code. Two things leave it: its
+  # success or failure, and one output, the verdict: one line of JSON with fixed keys (ids, commits, hashes, one word of
+  # a list) that the job that signs reads as data and checks again. No artifact, no cache. Inside it the code runs as
+  # another user, with an empty environment and no network. The step before the judge checks that last part the way the judge starts the code, on
   # this very machine, and fails the job before any of the pull request's code runs if there is a route out.
   judge:
     needs: review
@@ -225,6 +229,8 @@ jobs:
     cache-mode: read
     permissions:
       contents: read          # the two trees; nothing else of the repository, and nothing to write
+    outputs:
+      verdict: ${{ steps.verdict.outputs.verdict }}     # data for the job that signs, which believes none of it unchecked
     steps:
       - name: the default branch with its history, into base/
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -269,7 +275,7 @@ jobs:
       - name: install knos, this one requirement exactly, with pytest and pip for the trees it judges
         env:
           UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
-        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170"
+        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
       # The same layers the judge puts around the code (sudo, a network namespace of its own, the user nobody, an empty
       # environment), and a program that tries to reach three well-known addresses by number. If it gets out, or the
       # sandbox cannot be made here, the job ends now.
@@ -298,14 +304,20 @@ jobs:
             exit 1
           fi
           echo "$out"
-      - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
-        run: |
-          printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"7MzKH2Mm7hUD4g9SdCMmL1MR4SBPBUaZXP4RwiFs8ZGo","knos_oidc":"iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd","knos_passkey":"8YwdomJwYQJV7adkqgNyehdZ3tZhpTsp6SFUNfTsKKxk","knos_pay":"FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment for the 0.3.14 rehearsal: knos_oidc 2.2 (verified build) and knos_pay 2.2 (OIDC_ID = the staging knos_oidc) from scripts/deploy_v2.sh --rc; knos_meter 1.1 (OIDC_ID = the staging knos_oidc) and knos_passkey 1.1 (KNOS_PAY = the staging knos_pay) at throwaway ids. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
-          echo "KNOS_PROGRAM_IDS=$RUNNER_TEMP/knos-program-ids.json" >> "$GITHUB_ENV"
       - name: knos proof judge, in the sandbox
         env:
           ISSUE: ${{ needs.review.outputs.tests }}
         run: knos proof judge --base base --pr pr --issue "$ISSUE" --changed changed.txt --sandbox require
+      # Only after the suite passed. One line: which run, pull request, issue and commits, the hash of the acceptance
+      # checks that ran, a hash of the changed paths. Nothing in it is free text.
+      - name: the verdict, one line of fixed fields (the job that signs checks every one)
+        id: verdict
+        env:
+          ISSUE: ${{ needs.review.outputs.tests }}
+          PULL: ${{ needs.review.outputs.pull }}
+          HEAD: ${{ needs.review.outputs.head }}
+        run: >-
+          "$(uv tool dir)/knos/bin/python" -m knos.verdict_gate emit --base base --issue "$ISSUE" --changed changed.txt
 
   # ---- tests mode: the token, in a job that never sees pull request code ---------------------------------------------
   attest:
@@ -359,12 +371,19 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
-      - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
-        run: |
-          printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"7MzKH2Mm7hUD4g9SdCMmL1MR4SBPBUaZXP4RwiFs8ZGo","knos_oidc":"iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd","knos_passkey":"8YwdomJwYQJV7adkqgNyehdZ3tZhpTsp6SFUNfTsKKxk","knos_pay":"FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment for the 0.3.14 rehearsal: knos_oidc 2.2 (verified build) and knos_pay 2.2 (OIDC_ID = the staging knos_oidc) from scripts/deploy_v2.sh --rc; knos_meter 1.1 (OIDC_ID = the staging knos_oidc) and knos_passkey 1.1 (KNOS_PAY = the staging knos_pay) at throwaway ids. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
-          echo "KNOS_PROGRAM_IDS=$RUNNER_TEMP/knos-program-ids.json" >> "$GITHUB_ENV"
+      # Before anything can be signed. The verdict is text from a machine that ran a stranger's code: it is parsed
+      # strictly, held to this run, pull request, issue and pair of commits, and what GitHub records is worked out again
+      # here. This step asks GitHub for no token; a verdict that does not hold ends the job.
+      - name: the judge's verdict, read as data and checked again here
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERDICT: ${{ needs.judge.outputs.verdict }}
+          PULL: ${{ needs.review.outputs.pull }}
+          HEAD: ${{ needs.review.outputs.head }}
+          ISSUE: ${{ needs.review.outputs.tests }}
+        run: python -m knos.verdict_gate check
       - name: knos settle, for the pull request, the head commit and the issue the judge passed
         env:
           GH_TOKEN: ${{ github.token }}

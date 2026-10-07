@@ -27,7 +27,7 @@ name: knos attest (reusable workflow)
 # cannot be run from outside. The first job then runs nothing, and the verdict says: "this judge read the buyer
 # repository's check results; it did not run them".
 # The verdict (reexecuted, passed, the assurance, the image's digest, a hash of each tree, where it ran) is kept as the
-# run's artifact `knos-verdict` and posted as a `knos-verdict:` comment beside the token. The kind says
+# run's artifact `knos-verdict-<attempt>` and posted as a `knos-verdict:` comment beside the token. The kind says
 # which one: pay (the terms were met), take (reserve the order for someone), revert (inside the warranty, the holdback
 # goes back to the funder) or rule (the arbiter the order named decides). The audience of the statement names the
 # order, the pull request and the commit, so it is good for that one action and no other.
@@ -152,11 +152,7 @@ jobs:
       - name: install knos, this one requirement exactly, with pytest and pip for the trees it judges
         env:
           UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
-        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170"
-      - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
-        run: |
-          printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"7MzKH2Mm7hUD4g9SdCMmL1MR4SBPBUaZXP4RwiFs8ZGo","knos_oidc":"iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd","knos_passkey":"8YwdomJwYQJV7adkqgNyehdZ3tZhpTsp6SFUNfTsKKxk","knos_pay":"FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment for the 0.3.14 rehearsal: knos_oidc 2.2 (verified build) and knos_pay 2.2 (OIDC_ID = the staging knos_oidc) from scripts/deploy_v2.sh --rc; knos_meter 1.1 (OIDC_ID = the staging knos_oidc) and knos_passkey 1.1 (KNOS_PAY = the staging knos_pay) at throwaway ids. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
-          echo "KNOS_PROGRAM_IDS=$RUNNER_TEMP/knos-program-ids.json" >> "$GITHUB_ENV"
+        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
       - name: the plan (which two commits, which suite, which image), from the order on Solana and GitHub's record
         id: plan
         env:
@@ -230,7 +226,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: knos-verdict
+          name: knos-verdict-${{ github.run_attempt }}     # one name per attempt: a job run again never writes into an earlier attempt's artifact
           path: ${{ runner.temp }}/rerun/verdict.json
           if-no-files-found: ignore
 
@@ -276,12 +272,15 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
-      - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
-        run: |
-          printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"7MzKH2Mm7hUD4g9SdCMmL1MR4SBPBUaZXP4RwiFs8ZGo","knos_oidc":"iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd","knos_passkey":"8YwdomJwYQJV7adkqgNyehdZ3tZhpTsp6SFUNfTsKKxk","knos_pay":"FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment for the 0.3.14 rehearsal: knos_oidc 2.2 (verified build) and knos_pay 2.2 (OIDC_ID = the staging knos_oidc) from scripts/deploy_v2.sh --rc; knos_meter 1.1 (OIDC_ID = the staging knos_oidc) and knos_passkey 1.1 (KNOS_PAY = the staging knos_pay) at throwaway ids. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
-          echo "KNOS_PROGRAM_IDS=$RUNNER_TEMP/knos-program-ids.json" >> "$GITHUB_ENV"
+      # The first job's verdict is text from a machine that ran a stranger's code. Before the command reads it, it is
+      # held to what every reader reads the same way: small, plain characters, one object, each key once, only the
+      # fields a verdict has. Which order, pull request and commits it is about is the command's to check, next.
+      - name: the verdict, read as data (nothing is signed on text two readers could read differently)
+        env:
+          KNOS_RERUN: ${{ needs.rerun.outputs.verdict }}
+        run: python -m knos.verdict_gate shape
       - name: knos attest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -338,12 +337,13 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
-      - name: "REHEARSAL: the staging program ids (KNOS_PROGRAM_IDS)"
-        run: |
-          printf '%s\n' '{"attest_owner_id":142920951,"attest_repo_ids":[1353152983,1401432540],"claim_sha":"80e796d341f65060767939c4e65a38ede5fa1ac8","claim_sha_org":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","fee_owner":"4G3cznCnwCUPBCZwzKiLupjdgB5pSoCcGWNGuFv4TYFo","guardian":"AT1aKj1DpgaWerxmS4YjDkNpWPNUtCCKVDvxLhFxg5Jc","guardian_multisig":"EwqWNR3XwE9RMsJQdH7pZJSx4WERXCKLQdBpMnr8jFx5","knos_meter":"7MzKH2Mm7hUD4g9SdCMmL1MR4SBPBUaZXP4RwiFs8ZGo","knos_oidc":"iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd","knos_passkey":"8YwdomJwYQJV7adkqgNyehdZ3tZhpTsp6SFUNfTsKKxk","knos_pay":"FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH","rotate_sha":"6ddf031b64febecfcd510763ecee37637a8047fa","rotate_sha2":"212f9eb5f584eb6f8cd2d6673878132fc0011e27","squads_program":"SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf","staging":"A STAGING deployment for the 0.3.14 rehearsal: knos_oidc 2.2 (verified build) and knos_pay 2.2 (OIDC_ID = the staging knos_oidc) from scripts/deploy_v2.sh --rc; knos_meter 1.1 (OIDC_ID = the staging knos_oidc) and knos_passkey 1.1 (KNOS_PAY = the staging knos_pay) at throwaway ids. Not the pinned programs.","upgrade_authority":"CKCrTBN542pVhizxuSPVg8tvdnPooNxt9B7o97VuTjz2","upgrade_multisig":"9HcsMEo2o6zZu9t1kbFWpnyKn7hiHaZYYFwNHZSpmWqK"}' > "$RUNNER_TEMP/knos-program-ids.json"
-          echo "KNOS_PROGRAM_IDS=$RUNNER_TEMP/knos-program-ids.json" >> "$GITHUB_ENV"
+      # as in attest: the verdict is posted only when every reader would read it the same way
+      - name: the verdict, read as data (nothing is signed on text two readers could read differently)
+        env:
+          KNOS_RERUN: ${{ needs.rerun.outputs.verdict }}
+        run: python -m knos.verdict_gate shape
       - name: knos attest, refused, with the reasons posted
         env:
           GH_TOKEN: ${{ github.token }}

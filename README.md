@@ -1,12 +1,7 @@
 # knos-workflows
 
-> **REHEARSAL: the staging program ids.** Every job of these files also sets `KNOS_PROGRAM_IDS` to a file holding the ids of the
-> STAGING deployment (`scripts/deploy_v2.sh --rc`): knos_oidc `iosu8ARUNvvruHPCcMWQ5rqsnJewzBxcPXajSpoHqXd`, knos_pay `FJJtqcRjQ9ATx37sBTCLUBxBqLUA9aQgSTLAsZynqtnH`;
-> every other id is the pinned one. That step is written in after `pinned_workflows.py build --source`, so
-> `pinned_workflows.py check` reports these files as differing from the rehearsal variant.
-
 > **REHEARSAL VARIANT.** These are not the published workflows: knos is installed from
-> `git+https://github.com/drexthealpha/knos-rc@ed6f20bda48ceafb01c9295f62b5060df7680170`
+> `git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15`
 > instead of the PyPI release. For a staging repository only: a bounty funded through these files is pinned
 > to this repository's commit, not to the published one.
 
