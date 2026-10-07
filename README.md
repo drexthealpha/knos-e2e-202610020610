@@ -1,7 +1,7 @@
 # knos-workflows
 
 > **REHEARSAL VARIANT.** These are not the published workflows: knos is installed from
-> `git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15`
+> `git+https://github.com/drexthealpha/knos-rc@99684df2714ecb6e8ffc5a6b6b5db8ce8a09d00e`
 > instead of the PyPI release. For a staging repository only: a bounty funded through these files is pinned
 > to this repository's commit, not to the published one.
 

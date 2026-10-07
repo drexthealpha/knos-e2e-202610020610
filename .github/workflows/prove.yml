@@ -161,7 +161,7 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@99684df2714ecb6e8ffc5a6b6b5db8ce8a09d00e"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
       - name: knos settle
         env:
@@ -204,7 +204,7 @@ jobs:
       - name: install knos, this one requirement exactly
         env:
           UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
-        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
+        run: uv tool install --no-config "git+https://github.com/drexthealpha/knos-rc@99684df2714ecb6e8ffc5a6b6b5db8ce8a09d00e"
       - name: knos review
         id: review
         env:
@@ -275,7 +275,7 @@ jobs:
       - name: install knos, this one requirement exactly, with pytest and pip for the trees it judges
         env:
           UV_EXCLUDE_NEWER: "2026-10-10T00:00:00Z"
-        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
+        run: uv tool install --no-config --with pytest --with pip "git+https://github.com/drexthealpha/knos-rc@99684df2714ecb6e8ffc5a6b6b5db8ce8a09d00e"
       # The same layers the judge puts around the code (sudo, a network namespace of its own, the user nobody, an empty
       # environment), and a program that tries to reach three well-known addresses by number. If it gets out, or the
       # sandbox cannot be made here, the job ends now.
@@ -371,7 +371,7 @@ jobs:
               --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
               # via solders
           LOCK
-          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@023e6aceba04f4b21908878905face770e16ca15"
+          uv pip install --no-config --python "$RUNNER_TEMP/knos/bin/python" --no-deps "git+https://github.com/drexthealpha/knos-rc@99684df2714ecb6e8ffc5a6b6b5db8ce8a09d00e"
           echo "$RUNNER_TEMP/knos/bin" >> "$GITHUB_PATH"
       # Before anything can be signed. The verdict is text from a machine that ran a stranger's code: it is parsed
       # strictly, held to this run, pull request, issue and pair of commits, and what GitHub records is worked out again
