@@ -14,3 +14,8 @@ def mid(a, b, c):
 def digitsum(n):
     """The sum of the decimal digits of n."""
     return sum(int(d) for d in str(n))
+
+
+def half(x):
+    """Half of x."""
+    return x // 2
